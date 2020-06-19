@@ -5,6 +5,7 @@
 
 为此,开发供自己使用的FW及对应app,确保自己能够正常使用此排插.取名为zTC1.
 
+
 >  注意:
 >
 >  ​	TC1排插硬件分a1 a2两个版本,本固件仅支持**a1版本.**
@@ -146,6 +147,7 @@ TC1使用的主控为EMW3031,基于MiCO(MCU based Internet Connectivity Operatin
 3. 配置[Jlink下载工具](http://developer.mxchip.com/handbooks/103)
 4. check out 此项目,按照[从一个现有的 Git 仓库克隆导入](http://developer.mxchip.com/handbooks/102#%E4%BB%8E%E4%B8%80%E4%B8%AA%E7%8E%B0%E6%9C%89%E7%9A%84-git-%E4%BB%93%E5%BA%93%E5%85%8B%E9%9A%86%E5%AF%BC%E5%85%A5)确认项目编译/下载正常
 
+此项目来自a2633063最后一次开源的版本。由于本人仅使用homeassistant+mqtt控制，因此参考cnk700i的代码会做少量修改。如果你也在做tc1的固件完善欢迎fork。
 
 
 ### 通信协议
