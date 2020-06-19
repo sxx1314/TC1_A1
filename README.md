@@ -24,7 +24,10 @@ WARING：因为精简掉UDP通信协议，使用上会造成不方便，精简�
 - 启动容器并进入容器
 
 - 自己调整主机映射目录/home/mico；容器内工程目录设置为/workdir，可根据喜好调整，但注意后续命令也要调整。
-```docker run -it --name mico -v /home/mico:/workdir python:2-slim bash
+
+```
+docker run -it --name mico -v /home/mico:/workdir python:2-slim bash
+
 ```
 DEBUG：后续进入容器可以用命令docker exec -it mico bash，更多docker命令介绍传送门。
 
