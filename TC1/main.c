@@ -2,8 +2,7 @@
 
 #include "user_gpio.h"
 #include "user_wifi.h"
-#include "user_rtc.h"
-#include "user_udp.h"
+#include "user_sntp.h"
 #include "user_power.h"
 #include "user_mqtt_client.h"
 #include "user_function.h"
@@ -13,8 +12,9 @@
 
 
 
-char rtc_init = 0;    //sntp–£ ±≥…π¶±Í÷æŒª
-uint32_t total_time=0;
+char first_sntp = 0;    //sntpÊ†°Êó∂ÊàêÂäüÊ†áÂøó‰Ωç
+uint32_t sntp_count=0;
+uint32_t run_time=0;
 char strMac[16] = { 0 };
 uint32_t power=0;
 
@@ -26,45 +26,34 @@ mico_gpio_t Relay[Relay_NUM] = { Relay_0, Relay_1, Relay_2, Relay_3, Relay_4, Re
 /* MICO system callback: Restore default configuration provided by application */
 void appRestoreDefault_callback( void * const user_config_data, uint32_t size )
 {
-    int i, j;
+    int i;
     UNUSED_PARAMETER( size );
 
-
-    mico_system_context_get( )->micoSystemConfig.name[0] = 1;   //‘⁄œ¬¥Œ÷ÿ∆Ù ± π”√ƒ¨»œ√˚≥∆
+    mico_system_context_get( )->micoSystemConfig.name[0] = 1;   //Âú®‰∏ãÊ¨°ÈáçÂêØÊó∂‰ΩøÁî®ÈªòËÆ§ÂêçÁß∞
     mico_system_context_get( )->micoSystemConfig.name[1] = 0;
 
     user_config_t* userConfigDefault = user_config_data;
 
-    userConfigDefault->user[0] = 0;
-    userConfigDefault->mqtt_ip[0] = 0;
-    userConfigDefault->mqtt_port = 0;
-    userConfigDefault->mqtt_user[0] = 0;
-    userConfigDefault->mqtt_password[0] = 0;
+    // userConfigDefault->user[0] = 0;
+    // userConfigDefault->mqtt_ip[0] = 0;
+    // userConfigDefault->mqtt_port = 0;
+    // userConfigDefault->mqtt_user[0] = 0;
+    // userConfigDefault->mqtt_password[0] = 0;
+
+    sprintf(userConfigDefault->mqtt_ip, CONFIG_MQTT_IP);
+    userConfigDefault->mqtt_port = CONFIG_MQTT_PORT;
+    sprintf(userConfigDefault->mqtt_user, CONFIG_MQTT_USER);
+    sprintf(userConfigDefault->mqtt_password, CONFIG_MQTT_PASSWORD);
+    //ÂàùÂßãÂåñwifiÂèäÂØÜÁ†Å
+    strcpy( mico_system_context_get( )->micoSystemConfig.ssid, CONFIG_SSID );
+    strcpy( mico_system_context_get( )->micoSystemConfig.user_key, CONFIG_USER_KEY );
+    mico_system_context_get( )->micoSystemConfig.user_keyLength = strlen( CONFIG_USER_KEY );
 
     userConfigDefault->version = USER_CONFIG_VERSION;
-    for ( i = 0; i < PLUG_NUM; i++ )
+    for ( i = 0; i < SLOT_NUM; i++ )
     {
-        userConfigDefault->plug[i].on = 1;
+        userConfigDefault->slot[i] = 1;
 
-        //≤Â◊˘√˚≥∆ ≤Âø⁄1-6
-        userConfigDefault->plug[i].name[0] = 0xe6;
-        userConfigDefault->plug[i].name[1] = 0x8f;
-        userConfigDefault->plug[i].name[2] = 0x92;
-        userConfigDefault->plug[i].name[3] = 0xe5;
-        userConfigDefault->plug[i].name[4] = 0x8f;
-        userConfigDefault->plug[i].name[5] = 0xa3;
-        userConfigDefault->plug[i].name[6] = i + '1';
-        userConfigDefault->plug[i].name[7] = 0;
-
-//        sprintf( userConfigDefault->plug[i].name, "≤Â◊˘%d", i );//±‡¬Î“Ï≥£
-        for ( j = 0; j < PLUG_TIME_TASK_NUM; j++ )
-        {
-            userConfigDefault->plug[i].task[j].hour = 0;
-            userConfigDefault->plug[i].task[j].minute = 0;
-            userConfigDefault->plug[i].task[j].repeat = 0x00;
-            userConfigDefault->plug[i].task[j].on = 0;
-            userConfigDefault->plug[i].task[j].action = 1;
-        }
     }
 //    mico_system_context_update( sys_config );
 
@@ -96,40 +85,39 @@ int application_start( void )
 
     MicoGpioInitialize( (mico_gpio_t) Button, INPUT_PULL_UP );
     if ( !MicoGpioInputGet( Button ) )
-    {   //ø™ª˙ ±∞¥≈•◊¥Ã¨
+    {   //ÂºÄÊú∫Êó∂ÊåâÈíÆÁä∂ÊÄÅ
         os_log( "wifi_start_easylink" );
-        wifi_status = WIFI_STATE_NOEASYLINK;  //wifi_init÷–∆Ù∂Øeasylink
+        wifi_status = WIFI_STATE_NOEASYLINK;  //wifi_init‰∏≠ÂêØÂä®easylink
     }
 
     MicoGpioInitialize( (mico_gpio_t) Led, OUTPUT_PUSH_PULL );
     for ( i = 0; i < Relay_NUM; i++ )
     {
         MicoGpioInitialize( Relay[i], OUTPUT_PUSH_PULL );
-        user_relay_set( i, user_config->plug[i].on );
+        user_relay_set( i, user_config->slot[i] );
     }
     MicoSysLed( 0 );
 
-    if ( user_config->version != USER_CONFIG_VERSION || user_config->plug[0].task[0].hour < 0 || user_config->plug[0].task[0].hour > 23 )
+    if ( user_config->version != USER_CONFIG_VERSION)
     {
         os_log( "WARNGIN: user params restored!" );
         err = mico_system_context_restore( sys_config );
         require_noerr( err, exit );
     }
 
+    wifi_init( );
+    mico_thread_msleep(1000);
+
+    IPStatusTypedef para;
+    micoWlanGetIPStatus( &para, Station );
+    os_log( "micoWlanGetIPStatus:%d", micoWlanGetIPStatus( &para, Station ));   //macËØªÂá∫Êù•ÂÖ®ÈÉ®ÊòØ0??!!!
+    strcpy( strMac, para.mac );
+    os_log( "result:%s",strMac );
+    os_log( "result:%s",para.mac );
+
     if ( sys_config->micoSystemConfig.name[0] == 1 )
     {
-        IPStatusTypedef para;
-        os_log( "micoWlanGetIPStatus:%d", micoWlanGetIPStatus( &para, Station ));   //mac∂¡≥ˆ¿¥»´≤ø «0??!!!
-        strcpy( strMac, para.mac );
-        os_log( "result:%s",strMac );
-        os_log( "result:%s",para.mac );
-
-
-        unsigned char mac1, mac2;
-        mac1 = strtohex( strMac[8], strMac[9] );
-        mac2 = strtohex( strMac[10], strMac[11] );
-        os_log( "strtohex:0x%02x%02x",mac1,mac2 );
-        sprintf( sys_config->micoSystemConfig.name, ZTC1_NAME, mac1, mac2 );
+        sprintf( sys_config->micoSystemConfig.name, ZTC_NAME, strMac );
     }
 
     os_log( "user:%s",user_config->user );
@@ -140,25 +128,24 @@ int application_start( void )
     os_log( "mqtt_password:%s",user_config->mqtt_password );
 
     os_log( "version:%d",user_config->version );
-//    for ( i = 0; i < PLUG_NUM; i++ )
+//    for ( i = 0; i < SLOT_NUM; i++ )
 //    {
-//        os_log("plug_%d:",i);
-//        os_log("\tname:%s:",user_config->plug[i].name);
-//        for ( j = 0; j < PLUG_TIME_TASK_NUM; j++ )
+//        os_log("slot_%d:",i);
+//        os_log("\tname:%s:",user_config->slot[i].name);
+//        for ( j = 0; j < SLOT_TIME_TASK_NUM; j++ )
 //        {
-//            os_log("\t\ton:%d\t %02d:%02d repeat:0x%X",user_config->plug[i].task[j].on,
-//                user_config->plug[i].task[j].hour,user_config->plug[i].task[j].minute,
-//                user_config->plug[i].task[j].repeat);
+//            os_log("\t\ton:%d\t %02d:%02d repeat:0x%X",user_config->slot[i].task[j].on,
+//                user_config->slot[i].task[j].hour,user_config->slot[i].task[j].minute,
+//                user_config->slot[i].task[j].repeat);
 //        }
 //    }
 
-    wifi_init( );
-    user_udp_init( );
+
+    // user_udp_init( );
     key_init( );
     err = user_mqtt_init( );
     require_noerr( err, exit );
-    err = user_rtc_init( );
-    require_noerr( err, exit );
+    sntp_init();
     user_power_init();
 
     /* start http server thread */
@@ -166,23 +153,22 @@ int application_start( void )
     while ( 1 )
     {
         main_num++;
-        //∑¢ÀÕπ¶¬  ˝æ›
+        //ÂèëÈÄÅÂäüÁéáÊï∞ÊçÆ
         if ( power_last != power || main_num>4 )
         {
             power_last = power;
             main_num =0;
-            uint8_t *power_buf = NULL;
-            power_buf = malloc( 128 );
-            if ( power_buf != NULL )
-            {
-                sprintf( power_buf, "{\"mac\":\"%s\",\"power\":\"%d.%d\",\"total_time\":%d}", strMac, power / 10, power % 10, total_time );
-                user_send( 0, power_buf );
-                free( power_buf );
-            }
+            // uint8_t *power_buf = NULL;
+            // power_buf = malloc( 128 );
+            // if ( power_buf != NULL )
+            // {
+            //     sprintf( power_buf, "{\"power\":\"%d.%d\",\"run_time\":%d}", power / 10, power % 10, run_time );
+            //     user_mqtt_send( power_buf );
+            //     free( power_buf );
+            // }
             user_mqtt_hass_power( );
         }
-        mico_thread_msleep(1000);
-
+        mico_thread_msleep(STATE_UPDATE_INTERVAL);
     }
     exit:
     os_log("application_start ERROR!");

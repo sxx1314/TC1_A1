@@ -1,162 +1,102 @@
-# zTC1 a1版
-**斐讯TC1智能排插个人固件.**
-
-排插TC1因为服务器关闭,无法使用.
-
-为此,开发供自己使用的FW及对应app,确保自己能够正常使用此排插.取名为zTC1.
-
-
->  注意:
->
->  ​	TC1排插硬件分a1 a2两个版本,本固件仅支持**a1版本.**
->
->  ​	a1 a2两个版本仅主控不同,除此之外其他无任何区别
->
->  ​	区分硬件版本见[区分硬件版本](#区分硬件版本)
-
-
-
-
-
-
-
-
-
-### 已知BUG
-
-不定时重启断电!!! 
-
-定时任务偶尔无效
-
-为防止商用,以上bug在公开版本不修复
-
-## 特性
-
-本固件使用斐讯TC1排插硬件为基础,实现以下功能:
-
-- [x] 4个USB充电(3个普通和1个快充接口)(硬件直接实现,与软件无关)
-- [x] 按键控制所有插口通断
-- [x] 控制每个接口独立开关
-- [x] 每个接口拥有独立的5组定时开关
-- [x] ota在线升级
-- [x] 无服务器时使用UDP通信
-- [x] MQTT服务器连接控制
-- [x] 通过mqtt连入homeassistant
-- [x] app实时显示功率(校准数据)
-- [ ] ~~根据功率自动开关~~(未做此功能)
-
-<img src="https://raw.githubusercontent.com/wiki/a2633063/zTC1/image/Phicomm_TC1.png" width="540">
-
-
-
-
-
-## 目录
-
-[前言(必看)](#前言必看)
-
-[区分硬件版本](#区分硬件版本)
-
-[开始](#开始)
-
-[拆机接线及烧录固件相关](#拆机接线及烧录固件相关)
-
-[开始使用/使用方法](#开始使用/使用方法)
-
-[接入home assistant](#接入home-assistant)
-
-[其他内容](#其他内容)
-
-​	[代码编译](#代码编译)
-
-​	[通信协议](#通信协议)
-
-
-
-
-
-## 前言(必看)
-
-- 除非写明了`如果你不是开发人员,请忽略此项`之类的字眼,否则,请**一个字一个字看清楚看完**整后再考虑动手及提问!很可能一句话就是你成功与否的关键!
-- 烧录固件需要专用的烧录器:支持swd的jlink烧录器,目前已知便宜的价格为不到20元包邮.(本人不做烧录器的售卖,所有提供的链接或推荐都为第三方卖家,和本人无关).
-- 使用此固件,需要app端配合,见[SmartControl_Android_MQTT](https://github.com/a2633063/SmartControl_Android_MQTT).
-- app只有android,因ios限制,本人不考虑免费做ios开发.(不要再问是否有ios端).
-
-> 虽然没有ios端,但固件支持homeassistant,可以使用安卓APP配置完成后,连入homeassistant后,使用ios控制. APP主要仅为第一次使用配对网络及配置mqtt服务器时使用,之后可以用homeassistant控制不再使用app.
-
-> 如果你不知道什么是mqtt或homeassistant,所有有关的内容可以跳过.
-
-> 如果你有任何问题,可以直接在此项目中提交issue,或给我发送邮件:zip_zhang@foxmail.com,邮件标题中请注明[zTC1].
->
-> 
-
-
-
-## 区分硬件版本
-
-硬件版本在外包装底部,如图所示:
-
-![hardware_version](https://raw.githubusercontent.com/a2633063/zTC1/master/README/hardware_version.png)
-
-如果没有包装,只能[拆开](#拆机接线及烧录固件相关)分辨,如图,左侧为不支持的a2版本,右侧为支持的a1版本
-
-![a1_a2](https://raw.githubusercontent.com/a2633063/zTC1/master/README/a1_a2.png)
-
-
-
-## 开始
-
-整体流程如下:拆开TC1,将固件/烧录器/pc互相连接,在pc运行烧录软件进行烧录,烧录固件.
-
-烧录完成后,首次使用前配对网络并配置mqtt服务器,之后就可以使用了.
-
-
-
-## 拆机接线及烧录固件相关
-
-见[固件烧录](https://github.com/sxx1314/zTC1/wiki/固件烧录)
-
-烧录固件完成后,即可开始使用
-
-
-
-## 开始使用/使用方法
-
-见[开始使用](https://github.com/sxx1314/zTC1/wiki/开始使用)
-
-
-
-## 接入home assistant
-
-见[homeassistant接入](https://github.com/sxx1314/zTC1/wiki/homeassistant接入)
-
-
-
-## 其他内容
-
-### 代码编译
-
-> 此项为专业开发人员准备,如果你不是开发人员,请跳过此项
-
-TC1使用的主控为EMW3031,基于MiCO(MCU based Internet Connectivity Operating System)开发.[MiCO简介点这里](http://developer.mxchip.com/handbooks/101)
-
-需要按照官方说明才能保证此项目能够编译成功:
-
-1. 安装[MiCO Cube编译工具](http://developer.mxchip.com/handbooks/102)
-2. 配置[MICoder IDE环境](http://developer.mxchip.com/handbooks/105)
-3. 配置[Jlink下载工具](http://developer.mxchip.com/handbooks/103)
-4. check out 此项目,按照[从一个现有的 Git 仓库克隆导入](http://developer.mxchip.com/handbooks/102#%E4%BB%8E%E4%B8%80%E4%B8%AA%E7%8E%B0%E6%9C%89%E7%9A%84-git-%E4%BB%93%E5%BA%93%E5%85%8B%E9%9A%86%E5%AF%BC%E5%85%A5)确认项目编译/下载正常
-
-此项目来自a2633063最后一次开源的版本。由于本人仅使用homeassistant+mqtt控制，因此参考cnk700i的代码会做少量修改。如果你也在做tc1的固件完善欢迎fork。
-
-
-### 通信协议
-
-> 此项为专业开发人员准备,如果你不是开发人员,请跳过此项
-
-所有通信协议开源,你可以自己开发控制app或ios端
-
-见[通信协议](https://github.com/sxx1314/zTC1/wiki/通信协议)
-
-
-
+## 高能预警 ##
+fork的版本号较低，可能存在不少bug，请充分测试后再用于实际场景。
+
+## 说明 ##
+基于[斐讯TC1智能排插固件zTC1](https://github.com/a2633063/zTC1/tree/v0.10)进行精简的固件，详细说明[传送门](https://ljr.im/articles/fibonacci-tc1-firmware-lite/)。
+
+1. 改动说明
+基于原固件v0.10进行修改：
+
+设定WIFI和MQTT设置直接烧录，懒得再装APP了
+去掉UDP通信功能，只保留MQTT通信功能
+去掉插座命名、定时功能，这块用Home Assistant来管理
+MQTT通信协议根据自己使用习惯进行了调整：调整topic、增加上线下线通知、使用qos
+把编译的warning警告基本去掉了
+WARING：因为精简掉UDP通信协议，使用上会造成不方便，精简带来的好处实际也不明显，请自行权衡。
+
+2. 编译环境
+使用docker，docker安装方法传送门。
+
+拉一个python2.7的镜像
+
+docker pull python:2-slim
+启动容器并进入容器
+
+#自己调整主机映射目录/home/mico；容器内工程目录设置为/workdir，可根据喜好调整，但注意后续命令也要调整。
+docker run -it --name mico -v /home/mico:/workdir python:2-slim bash
+DEBUG：后续进入容器可以用命令docker exec -it mico bash，更多docker命令介绍传送门。
+
+更新源、安装软件
+
+#容器bash
+apt update && apt install git wget lib32ncurses5
+INFO：一个坑，不安装lib32ncurses5库编译会报"arm-none-eabi-gcc: not found"错误。
+
+python bin
+
+ln -s /usr/local/bin/python /usr/bin/python
+INFO：一个坑，不设置软链接编译会报"/usr/bin/python: not found"错误。
+
+安装MiCo编译环境（mico-cube、MiCoder）
+
+#容器bash
+pip install mico-cube && \
+cd /workdir && \
+wget http://firmware.mxchip.com/MiCoder_v1.1.Linux.tar.gz && \
+tar -zxf MiCoder_v1.1.Linux.tar.gz && \
+rm MiCoder_v1.1.Linux.tar.gz && \
+mico config --global MICODER /workdir/MiCoder
+DEBUG：mico-cube是MXCHIP的MiCO项目开发管理工具包；MiCoder是MiCO编译和调试系统必须的工具软件包。
+
+3.编译固件
+创建一个空项目，名为TC1，自己开发则自定义
+
+#容器bash
+cd /workdir && \
+mico new TC1 --create-only
+INFO：命令执行完后，会在当前目录生成名称为TC1项目目录。
+
+添加mico-os组件
+
+#容器bash
+cd /workdir/TC1 && \
+mico add https://code.aliyun.com/mico/mico-os.git/#6c465211d3ff8797cd835e400ec54a06530dd476
+INFO：需要在项目目录下执行。
+
+添加项目代码，代码目录在项目目录下的项目同名目录，/workdir/TC1/TC1，自己开发则自定义
+
+#容器bash
+git clone https://github.com/cnk700i/tc1_mqtt.git && \
+mv tc1_mqtt/TC1 . && \
+rm tc1_mqtt -r
+DEBUG：下载zip解压后再拷贝进去也可以。
+
+设置WiFi及MQTT，修改项目代码main.h文件
+
+//自定义
+#define CONFIG_SSID "wifi_ssid"                 //WiFi名称
+#define CONFIG_USER_KEY "wifi_password"         //WiFi密码
+#define CONFIG_MQTT_IP "mqtt_ip"                //MQTT服务器IP
+#define CONFIG_MQTT_PORT 1883                   //MQTT服务器端口     
+#define CONFIG_MQTT_USER "mqtt_user"            //MQTT用户名
+#define CONFIG_MQTT_PASSWORD "mqtt_password"    //MQTT密码
+#define STATE_UPDATE_INTERVAL 10000             //功率上报间隔，单位ms
+#define MQTT_CLIENT_SUB_TOPIC   "cmnd/%s"       //命令控制接收topic，%s代表名称，默认tc1_xxxxxxxxxxxx（xxx为mac地址）
+#define MQTT_CLIENT_PUB_TOPIC   "stat/%s"       //状态信息topic，%s代表名称，默认tc1_xxxxxxxxxxxx（xxx为mac地址）
+编译项目代码
+
+#容器bash
+#/workdir/TC1
+mico make TC1@MK3031@moc
+4.刷固件
+编译成功后的固件文件
+
+/workdir/TC1/build/TC1@MK3031@moc/binary/TC1@mailto:MK3031@moc.all.bin，用于线刷
+/workdir/TC1/build/TC1@MK3031@moc/binary/TC1@mailto:MK3031@moc.ota.bin，用于OTA
+INFO：主机映射目录/home/mico/TC1/build/TC1@MK3031@moc/binary内可找到固件。
+
+线刷方法见原固件教程的固件烧录
+OTA方法见原固件教程的通信协议
+5.小结
+MiCo开发平台比之前DC1用的ESPHome容易上手好多，搭建环境也简单些，遇到一些小坑还是比较快就解决了。
+C语言看着真的头大，又感觉到了被指针支配的恐惧，还好原固件作者代码的业务逻辑还是比较清晰，于是就简单地改一改。

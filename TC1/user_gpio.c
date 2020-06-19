@@ -3,7 +3,6 @@
 #include "main.h"
 #include "user_gpio.h"
 #include "user_mqtt_client.h"
-#include "user_udp.h"
 #include "cJSON/cJSON.h"
 
 mico_gpio_t relay[Relay_NUM] = { Relay_0, Relay_1, Relay_2, Relay_3, Relay_4, Relay_5 };
@@ -21,9 +20,9 @@ void user_led_set( char x )
 bool relay_out( void )
 {
     unsigned char i;
-    for ( i = 0; i < PLUG_NUM; i++ )
+    for ( i = 0; i < SLOT_NUM; i++ )
     {
-        if ( user_config->plug[i].on != 0 )
+        if ( user_config->slot[i] != 0 )
         {
             return true;
         }
@@ -32,17 +31,17 @@ bool relay_out( void )
 }
 
 /*user_relay_set
- * ÉèÖÃ¼ÌµçÆ÷¿ª¹Ø
- * x:±àºÅ 0-5
- * y:¿ª¹Ø 0:¹Ø 1:¿ª
+ * è®¾ç½®ç»§ç”µå™¨å¼€å…³
+ * x:ç¼–å· 0-5
+ * y:å¼€å…³ 0:å…³ 1:å¼€
  */
 void user_relay_set(unsigned char x,unsigned char y )
 {
-    if (x >= PLUG_NUM ) return;
+    if (x >= SLOT_NUM ) return;
 
     if((y == 1) ? Relay_ON : Relay_OFF) MicoGpioOutputHigh( relay[x] );else MicoGpioOutputLow( relay[x] );
 
-    user_config->plug[x].on = y;
+    user_config->slot[x] = y;
 
     if ( relay_out( ) )
         user_led_set( 1 );
@@ -51,14 +50,14 @@ void user_relay_set(unsigned char x,unsigned char y )
 }
 
 /*
- * ÉèÖÃËùÓĞ¼ÌµçÆ÷¿ª¹Ø
- * y:0:È«²¿¹Ø   1:¸ù¾İ¼ÇÂ¼×´Ì¬¿ª¹ØËùÓĞ
+ * è®¾ç½®æ‰€æœ‰ç»§ç”µå™¨å¼€å…³
+ * y:0:å…¨éƒ¨å…³   1:æ ¹æ®è®°å½•çŠ¶æ€å¼€å…³æ‰€æœ‰
  *
  */
 void user_relay_set_all( char y )
 {
     char i;
-    for ( i = 0; i < PLUG_NUM; i++ )
+    for ( i = 0; i < SLOT_NUM; i++ )
         user_relay_set( i, y );
 }
 
@@ -71,8 +70,8 @@ static void key_long_press( void )
 
 static void key_long_10s_press( void )
 {
-    OSStatus err;
-    char i = 0;
+    // OSStatus err;
+    // char i = 0;
     os_log( "WARNGIN: user params restored!" );
 //    for ( i = 0; i < 3; i++ )
 //    {
@@ -88,7 +87,7 @@ static void key_long_10s_press( void )
 static void key_short_press( void )
 {
     char i;
-    OSStatus err;
+    // OSStatus err;
 
     if ( relay_out() )
     {
@@ -99,9 +98,9 @@ static void key_short_press( void )
         user_relay_set_all( 1 );
     }
 
-    for ( i = 0; i < PLUG_NUM; i++ )
+    for ( i = 0; i < SLOT_NUM; i++ )
     {
-        user_mqtt_send_plug_state(i);
+        user_mqtt_send_slot_state(i);
     }
 
 
@@ -116,12 +115,12 @@ static void key_timeout_handler( void* arg )
 
     static uint8_t key_trigger, key_continue;
     static uint8_t key_last;
-    //°´¼üÉ¨Ãè³ÌĞò
+    //æŒ‰é”®æ‰«æç¨‹åº
     uint8_t tmp = ~(0xfe | MicoGpioInputGet( Button ));
     key_trigger = tmp & (tmp ^ key_continue);
     key_continue = tmp;
 //    os_log("button scan:%02x %02x",key_trigger,key_continue);
-    if ( key_trigger != 0 ) key_time = 0; //ĞÂ°´¼ü°´ÏÂÊ±,ÖØĞÂ¿ªÊ¼°´¼ü¼ÆÊ±
+    if ( key_trigger != 0 ) key_time = 0; //æ–°æŒ‰é”®æŒ‰ä¸‹æ—¶,é‡æ–°å¼€å§‹æŒ‰é”®è®¡æ—¶
     if ( key_continue != 0 )
     {
         //any button pressed
@@ -155,7 +154,7 @@ static void key_timeout_handler( void* arg )
     {
         //button released
         if ( key_time < BUTTON_LONG_PRESS_TIME )
-        {   //100ms*10=1s ´óÓÚ1sÎª³¤°´
+        {   //100ms*10=1s å¤§äº1sä¸ºé•¿æŒ‰
             key_time = 0;
             os_log("button short pressed:%d",key_time);
             key_short_press( );
@@ -174,7 +173,7 @@ static void key_falling_irq_handler( void* arg )
 }
 void key_init( void )
 {
-    MicoGpioInitialize( Button, INPUT_PULL_UP );
+    // MicoGpioInitialize( Button, INPUT_PULL_UP );
     mico_rtos_init_timer( &user_key_timer, 100, key_timeout_handler, NULL );
 
     MicoGpioEnableIRQ( Button, IRQ_TRIGGER_FALLING_EDGE, key_falling_irq_handler, NULL );

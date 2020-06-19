@@ -29,9 +29,7 @@ $(NAME)_SOURCES := main.c\
 				   ota_server/ota_server.c\
 				   user_wifi.c\
 				   user_gpio.c\
-				   user_udp.c\
 				   user_sntp.c\
-				   user_rtc.c\
 				   user_mqtt_client.c\
 				   user_ota.c\
 				   user_power.c\

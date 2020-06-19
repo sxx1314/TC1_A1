@@ -7,197 +7,178 @@
 #include "cJSON/cJSON.h"
 #include "user_ota.h"
 #include "user_mqtt_client.h"
-#include "user_udp.h"
 
-uint32_t last_time = 0;
+bool json_slot_analysis( unsigned char x, cJSON * pJsonRoot, cJSON * pJsonSend );
+bool json_slot_task_analysis( unsigned char x, unsigned char y, cJSON * pJsonRoot, cJSON * pJsonSend );
 
-void user_function_set_last_time( )
-{
-    last_time = UpTicks( );
-}
-
-bool json_plug_analysis( int udp_flag, unsigned char x, cJSON * pJsonRoot, cJSON * pJsonSend );
-bool json_plug_task_analysis( unsigned char x, unsigned char y, cJSON * pJsonRoot, cJSON * pJsonSend );
-
-void user_send( int udp_flag, char *s )
-{
-    if ( udp_flag || !user_mqtt_isconnect( ) )
-        user_udp_send( s ); //∑¢ÀÕ ˝æ›
-    else
-        user_mqtt_send( s );
-}
-
-void user_function_cmd_received( int udp_flag, uint8_t *pusrdata )
+void user_function_cmd_received( char *mqtt_topic , char *mqtt_data )
 {
 
     unsigned char i;
-    bool update_user_config_flag = false;   //±Í÷æŒª,º«¬º◊Ó∫Û «∑Ò–Ë“™∏¸–¬¥¢¥Êµƒ ˝æ›
-    bool return_flag = true;    //Œ™true ±∑µªÿjsonΩ·π˚,∑Ò‘Ú≤ª∑µªÿ
+    bool update_user_config_flag = false;   //Ê†áÂøó‰Ωç,ËÆ∞ÂΩïÊúÄÂêéÊòØÂê¶ÈúÄË¶ÅÊõ¥Êñ∞ÂÇ®Â≠òÁöÑÊï∞ÊçÆ
+    bool return_flag = true;    //‰∏∫trueÊó∂ËøîÂõûjsonÁªìÊûú,Âê¶Âàô‰∏çËøîÂõû
 
-    cJSON * pJsonRoot = cJSON_Parse( pusrdata );
+    cJSON * pJsonRoot = cJSON_Parse( mqtt_data );
     if ( !pJsonRoot )
     {
-        os_log( "this is not a json data:\r\n%s\r\n", pusrdata );
+        os_log( "this is not a json mqtt_data:\r\n%s\r\n", mqtt_data );
         return;
     }
 
-    //Ω‚ŒˆUDP√¸¡Ódevice report(MQTTÕ¨—˘ªÿ∏¥√¸¡Ó)
+    //Ëß£ÊûêUDPÂëΩ‰ª§device report(MQTTÂêåÊ†∑ÂõûÂ§çÂëΩ‰ª§)
     cJSON *p_cmd = cJSON_GetObjectItem( pJsonRoot, "cmd" );
     if ( p_cmd && cJSON_IsString( p_cmd ) && strcmp( p_cmd->valuestring, "device report" ) == 0 )
     {
         cJSON *pRoot = cJSON_CreateObject( );
         cJSON_AddStringToObject( pRoot, "name", sys_config->micoSystemConfig.name );
-        cJSON_AddStringToObject( pRoot, "mac", strMac );
         cJSON_AddNumberToObject( pRoot, "type", TYPE );
         cJSON_AddStringToObject( pRoot, "type_name", TYPE_NAME );
-
+        uint32_t run_time = UpTicks( );   // get time in miiliseconds since RTOS start, roll over every 49 days, 17 hours.
+        cJSON_AddNumberToObject( pRoot, "run_time", run_time/1000 );
+        //IP„ÄÅmac
         IPStatusTypedef para;
         micoWlanGetIPStatus( &para, Station );
         cJSON_AddStringToObject( pRoot, "ip", para.ip );
-
+        cJSON_AddStringToObject( pRoot, "mac", strMac );
+        //Êó∂Èó¥
+        iso8601_time_t iso8601_time;
+        mico_time_get_iso8601_time( &iso8601_time );
+        char time_str[26];
+        sprintf(time_str, "%.27s", (char*)&iso8601_time);
+        cJSON_AddStringToObject( pRoot, "time", time_str );
+        cJSON_AddNumberToObject( pRoot, "sntp_count", sntp_count );
+        
         char *s = cJSON_Print( pRoot );
 //        os_log( "pRoot: %s\r\n", s );
-        user_send( udp_flag, s ); //∑¢ÀÕ ˝æ›
+        user_mqtt_send( s ); //ÂèëÈÄÅÊï∞ÊçÆ
         free( (void *) s );
         cJSON_Delete( pRoot );
         //          cJSON_Delete(p_cmd);
+        return;
     }
 
-    //“‘œ¬Œ™Ω‚Œˆ√¸¡Ó≤ø∑÷
-    cJSON *p_name = cJSON_GetObjectItem( pJsonRoot, "name" );
-    cJSON *p_mac = cJSON_GetObjectItem( pJsonRoot, "mac" );
+    //‰ª•‰∏ã‰∏∫Ëß£ÊûêÂëΩ‰ª§ÈÉ®ÂàÜ
+    // cJSON *p_name = cJSON_GetObjectItem( pJsonRoot, "name" );
+    // cJSON *p_mac = cJSON_GetObjectItem( pJsonRoot, "mac" );
 
-    //ø™ º’˝ Ω¥¶¿ÌÀ˘”–√¸¡Ó
-    if ( (p_name && cJSON_IsString( p_name ) && strcmp( p_name->valuestring, sys_config->micoSystemConfig.name ) == 0)    //name
-         || (p_mac && cJSON_IsString( p_mac ) && strcmp( p_mac->valuestring, strMac ) == 0)   //mac
-         )
+    //ÂºÄÂßãÊ≠£ÂºèÂ§ÑÁêÜÊâÄÊúâÂëΩ‰ª§
+    cJSON *json_send = cJSON_CreateObject( );
+    // cJSON_AddStringToObject( json_send, "mac", strMac );
+
+    //Ëß£ÊûêÁâàÊú¨
+    cJSON *p_version = cJSON_GetObjectItem( pJsonRoot, "version" );
+    if ( p_version )
     {
-        cJSON *json_send = cJSON_CreateObject( );
-        cJSON_AddStringToObject( json_send, "mac", strMac );
-
-        //Ω‚Œˆ÷ÿ∆Ù√¸¡Ó
-//        cJSON *p_cmd = cJSON_GetObjectItem( pJsonRoot, "name" );
-        if(p_cmd && cJSON_IsString( p_cmd ) && strcmp( p_cmd->valuestring, "restart" ) == 0)
-        {
-            os_log("cmd:restart");
-            mico_system_power_perform( mico_system_context_get( ), eState_Software_Reset );
-        }
-
-        //Ω‚Œˆ∞Ê±æ
-        cJSON *p_version = cJSON_GetObjectItem( pJsonRoot, "version" );
-        if ( p_version )
-        {
-            os_log("version:%s",VERSION);
-            cJSON_AddStringToObject( json_send, "version", VERSION );
-        }
-        //Ω‚Œˆ‘À–– ±º‰
-        cJSON *p_total_time = cJSON_GetObjectItem( pJsonRoot, "total_time" );
-        if ( p_total_time )
-        {
-            cJSON_AddNumberToObject( json_send, "total_time", total_time );
-        }
-        //Ω‚Œˆπ¶¬ 
-        cJSON *p_power = cJSON_GetObjectItem( pJsonRoot, "power" );
-        if ( p_power )
-        {
-            uint8_t *temp_buf = malloc( 16 );
-            if ( temp_buf != NULL )
-            {
-                sprintf( temp_buf, "%d.%d", power / 10, power % 10 );
-                cJSON_AddStringToObject( json_send, "power", temp_buf );
-                free( temp_buf );
-            }
-            os_log("power:%d",power);
-        }
-        //Ω‚Œˆ÷˜ª˙setting-----------------------------------------------------------------
-        cJSON *p_setting = cJSON_GetObjectItem( pJsonRoot, "setting" );
-        if ( p_setting )
-        {
-            //Ω‚Œˆota
-            cJSON *p_ota = cJSON_GetObjectItem( p_setting, "ota" );
-            if ( p_ota )
-            {
-                if ( cJSON_IsString( p_ota ) )
-                    user_ota_start( p_ota->valuestring, NULL );
-            }
-
-            cJSON *json_setting_send = cJSON_CreateObject( );
-            //…Ë÷√…Ë±∏√˚≥∆/deviceid
-            cJSON *p_setting_name = cJSON_GetObjectItem( p_setting, "name" );
-            if ( p_setting_name && cJSON_IsString( p_setting_name ) )
-            {
-                update_user_config_flag = true;
-                sprintf( sys_config->micoSystemConfig.name, p_setting_name->valuestring );
-            }
-
-            //…Ë÷√mqtt ip
-            cJSON *p_mqtt_ip = cJSON_GetObjectItem( p_setting, "mqtt_uri" );
-            if ( p_mqtt_ip && cJSON_IsString( p_mqtt_ip ) )
-            {
-                update_user_config_flag = true;
-                sprintf( user_config->mqtt_ip, p_mqtt_ip->valuestring );
-            }
-
-            //…Ë÷√mqtt port
-            cJSON *p_mqtt_port = cJSON_GetObjectItem( p_setting, "mqtt_port" );
-            if ( p_mqtt_port && cJSON_IsNumber( p_mqtt_port ) )
-            {
-                update_user_config_flag = true;
-                user_config->mqtt_port = p_mqtt_port->valueint;
-            }
-
-            //…Ë÷√mqtt user
-            cJSON *p_mqtt_user = cJSON_GetObjectItem( p_setting, "mqtt_user" );
-            if ( p_mqtt_user && cJSON_IsString( p_mqtt_user ) )
-            {
-                update_user_config_flag = true;
-                sprintf( user_config->mqtt_user, p_mqtt_user->valuestring );
-            }
-
-            //…Ë÷√mqtt password
-            cJSON *p_mqtt_password = cJSON_GetObjectItem( p_setting, "mqtt_password" );
-            if ( p_mqtt_password && cJSON_IsString( p_mqtt_password ) )
-            {
-                update_user_config_flag = true;
-                sprintf( user_config->mqtt_password, p_mqtt_password->valuestring );
-            }
-
-            //ø™∑¢∑µªÿ ˝æ›
-            //∑µªÿ…Ë±∏ota
-            if ( p_ota ) cJSON_AddStringToObject( json_setting_send, "ota", p_ota->valuestring );
-
-            //∑µªÿ…Ë±∏√˚≥∆/deviceid
-            if ( p_setting_name ) cJSON_AddStringToObject( json_setting_send, "name", sys_config->micoSystemConfig.name );
-            //∑µªÿmqtt ip
-            if ( p_mqtt_ip ) cJSON_AddStringToObject( json_setting_send, "mqtt_uri", user_config->mqtt_ip );
-            //∑µªÿmqtt port
-            if ( p_mqtt_port ) cJSON_AddNumberToObject( json_setting_send, "mqtt_port", user_config->mqtt_port );
-            //∑µªÿmqtt user
-            if ( p_mqtt_user ) cJSON_AddStringToObject( json_setting_send, "mqtt_user", user_config->mqtt_user );
-            //∑µªÿmqtt password
-            if ( p_mqtt_password ) cJSON_AddStringToObject( json_setting_send, "mqtt_password", user_config->mqtt_password );
-
-            cJSON_AddItemToObject( json_send, "setting", json_setting_send );
-        }
-
-        //Ω‚Œˆplug-----------------------------------------------------------------
-        for ( i = 0; i < PLUG_NUM; i++ )
-        {
-            if ( json_plug_analysis( udp_flag, i, pJsonRoot, json_send ) )
-                update_user_config_flag = true;
-        }
-
-        cJSON_AddStringToObject( json_send, "name", sys_config->micoSystemConfig.name );
-
-        if ( return_flag == true )
-        {
-            char *json_str = cJSON_Print( json_send );
-//            os_log( "pRoot: %s\r\n", json_str );
-            user_send( udp_flag, json_str ); //∑¢ÀÕ ˝æ›
-            free( (void *) json_str );
-        }
-        cJSON_Delete( json_send );
+        os_log("version:%s",VERSION);
+        cJSON_AddStringToObject( json_send, "version", VERSION );
     }
+    //Ëß£ÊûêËøêË°åÊó∂Èó¥
+    cJSON *p_run_time = cJSON_GetObjectItem( pJsonRoot, "run_time" );
+    if ( p_run_time )
+    {
+        cJSON_AddNumberToObject( json_send, "run_time", run_time );
+    }
+    //Ëß£ÊûêÂäüÁéá
+    cJSON *p_power = cJSON_GetObjectItem( pJsonRoot, "power" );
+    if ( p_power )
+    {
+        char *temp_buf = malloc( 16 );
+        if ( temp_buf != NULL )
+        {
+            sprintf( temp_buf, "%ld.%ld", power / 10, power % 10 );
+            cJSON_AddStringToObject( json_send, "power", temp_buf );
+            free( temp_buf );
+        }
+        os_log("power:%ld",power);
+    }
+    //Ëß£Êûê‰∏ªÊú∫setting-----------------------------------------------------------------
+    cJSON *p_setting = cJSON_GetObjectItem( pJsonRoot, "setting" );
+    if ( p_setting )
+    {
+        //Ëß£Êûêota
+        cJSON *p_ota = cJSON_GetObjectItem( p_setting, "ota" );
+        if ( p_ota )
+        {
+            if ( cJSON_IsString( p_ota ) )
+                user_ota_start( p_ota->valuestring, NULL );
+        }
+
+        cJSON *json_setting_send = cJSON_CreateObject( );
+        //ËÆæÁΩÆËÆæÂ§áÂêçÁß∞/deviceid
+        cJSON *p_setting_name = cJSON_GetObjectItem( p_setting, "name" );
+        if ( p_setting_name && cJSON_IsString( p_setting_name ) )
+        {
+            update_user_config_flag = true;
+            sprintf( sys_config->micoSystemConfig.name, p_setting_name->valuestring );
+        }
+
+        //ËÆæÁΩÆmqtt ip
+        cJSON *p_mqtt_ip = cJSON_GetObjectItem( p_setting, "mqtt_uri" );
+        if ( p_mqtt_ip && cJSON_IsString( p_mqtt_ip ) )
+        {
+            update_user_config_flag = true;
+            sprintf( user_config->mqtt_ip, p_mqtt_ip->valuestring );
+        }
+
+        //ËÆæÁΩÆmqtt port
+        cJSON *p_mqtt_port = cJSON_GetObjectItem( p_setting, "mqtt_port" );
+        if ( p_mqtt_port && cJSON_IsNumber( p_mqtt_port ) )
+        {
+            update_user_config_flag = true;
+            user_config->mqtt_port = p_mqtt_port->valueint;
+        }
+
+        //ËÆæÁΩÆmqtt user
+        cJSON *p_mqtt_user = cJSON_GetObjectItem( p_setting, "mqtt_user" );
+        if ( p_mqtt_user && cJSON_IsString( p_mqtt_user ) )
+        {
+            update_user_config_flag = true;
+            sprintf( user_config->mqtt_user, p_mqtt_user->valuestring );
+        }
+
+        //ËÆæÁΩÆmqtt password
+        cJSON *p_mqtt_password = cJSON_GetObjectItem( p_setting, "mqtt_password" );
+        if ( p_mqtt_password && cJSON_IsString( p_mqtt_password ) )
+        {
+            update_user_config_flag = true;
+            sprintf( user_config->mqtt_password, p_mqtt_password->valuestring );
+        }
+
+        //ÂºÄÂèëËøîÂõûÊï∞ÊçÆ
+        //ËøîÂõûËÆæÂ§áota
+        if ( p_ota ) cJSON_AddStringToObject( json_setting_send, "ota", p_ota->valuestring );
+
+        //ËøîÂõûËÆæÂ§áÂêçÁß∞/deviceid
+        if ( p_setting_name ) cJSON_AddStringToObject( json_setting_send, "name", sys_config->micoSystemConfig.name );
+        //ËøîÂõûmqtt ip
+        if ( p_mqtt_ip ) cJSON_AddStringToObject( json_setting_send, "mqtt_uri", user_config->mqtt_ip );
+        //ËøîÂõûmqtt port
+        if ( p_mqtt_port ) cJSON_AddNumberToObject( json_setting_send, "mqtt_port", user_config->mqtt_port );
+        //ËøîÂõûmqtt user
+        if ( p_mqtt_user ) cJSON_AddStringToObject( json_setting_send, "mqtt_user", user_config->mqtt_user );
+        //ËøîÂõûmqtt password
+        if ( p_mqtt_password ) cJSON_AddStringToObject( json_setting_send, "mqtt_password", user_config->mqtt_password );
+
+        cJSON_AddItemToObject( json_send, "setting", json_setting_send );
+    }
+
+    //Ëß£Êûêslot-----------------------------------------------------------------
+    for ( i = 0; i < SLOT_NUM; i++ )
+    {
+        if ( json_slot_analysis( i, pJsonRoot, json_send ) )
+            update_user_config_flag = true;
+    }
+
+    cJSON_AddStringToObject( json_send, "name", sys_config->micoSystemConfig.name );
+
+    if ( return_flag == true )
+    {
+        char *json_str = cJSON_Print( json_send );
+//            os_log( "pRoot: %s\r\n", json_str );
+        user_mqtt_send( json_str ); //ÂèëÈÄÅÊï∞ÊçÆ
+        free( (void *) json_str );
+    }
+    cJSON_Delete( json_send );
 
     if ( update_user_config_flag )
     {
@@ -210,127 +191,36 @@ void user_function_cmd_received( int udp_flag, uint8_t *pusrdata )
 }
 
 /*
- *Ω‚Œˆ¥¶¿Ì∂® ±»ŒŒÒjson
- *udp_flag:∑¢ÀÕudp/mqtt±Í÷æŒª,¥À¥¶–ﬁ∏ƒ≤Â◊˘ø™πÿ◊¥Ã¨ ±,–Ë“™ µ ±∏¸–¬∏¯domoticz
- *x:≤Â◊˘±‡∫≈
+ *Ëß£ÊûêÂ§ÑÁêÜÂÆöÊó∂‰ªªÂä°json
+ *udp_flag:ÂèëÈÄÅudp/mqttÊ†áÂøó‰Ωç,Ê≠§Â§Ñ‰øÆÊîπÊèíÂ∫ßÂºÄÂÖ≥Áä∂ÊÄÅÊó∂,ÈúÄË¶ÅÂÆûÊó∂Êõ¥Êñ∞Áªôdomoticz
+ *x:ÊèíÂ∫ßÁºñÂè∑
  */
-bool json_plug_analysis( int udp_flag, unsigned char x, cJSON * pJsonRoot, cJSON * pJsonSend )
+bool json_slot_analysis( unsigned char x, cJSON * pJsonRoot, cJSON * pJsonSend )
 {
     if ( !pJsonRoot ) return false;
     if ( !pJsonSend ) return false;
-    char i;
+
     bool return_flag = false;
-    char plug_str[] = "plug_X";
-    plug_str[5] = x + '0';
+    char slot_str[] = "slotX";
+    slot_str[4] = x + '0';
 
-    cJSON *p_plug = cJSON_GetObjectItem( pJsonRoot, plug_str );
-    if ( !p_plug ) return_flag = false;
+    cJSON *p_slot = cJSON_GetObjectItem( pJsonRoot, slot_str );
 
-    cJSON *json_plug_send = cJSON_CreateObject( );
-
-    //Ω‚Œˆplug on------------------------------------------------------
-    if ( p_plug )
+    //Ëß£Êûêslot on------------------------------------------------------
+    if ( p_slot )
     {
-        cJSON *p_plug_on = cJSON_GetObjectItem( p_plug, "on" );
-        if ( p_plug_on )
+        if ( cJSON_IsNumber( p_slot ) )
         {
-            if ( cJSON_IsNumber( p_plug_on ) )
-            {
-                user_relay_set( x, p_plug_on->valueint );
-                return_flag = true;
-            }
-            user_mqtt_send_plug_state( x );
-        }
-
-        //Ω‚Œˆplug÷–settingœÓƒø----------------------------------------------
-        cJSON *p_plug_setting = cJSON_GetObjectItem( p_plug, "setting" );
-        if ( p_plug_setting )
-        {
-            cJSON *json_plug_setting_send = cJSON_CreateObject( );
-            //Ω‚Œˆplug÷–setting÷–name----------------------------------------
-            cJSON *p_plug_setting_name = cJSON_GetObjectItem( p_plug_setting, "name" );
-            if ( p_plug_setting_name )
-            {
-                if ( cJSON_IsString( p_plug_setting_name ) )
-                {
-                    return_flag = true;
-                    sprintf( user_config->plug[x].name, p_plug_setting_name->valuestring );
-                    user_mqtt_hass_auto_name( x );
-                }
-                cJSON_AddStringToObject( json_plug_setting_send, "name", user_config->plug[x].name );
-            }
-
-            //Ω‚Œˆplug÷–setting÷–task----------------------------------------
-            for ( i = 0; i < PLUG_TIME_TASK_NUM; i++ )
-            {
-                if ( json_plug_task_analysis( x, i, p_plug_setting, json_plug_setting_send ) )
-                    return_flag = true;
-            }
-
-            cJSON_AddItemToObject( json_plug_send, "setting", json_plug_setting_send );
-        }
-    }
-//    cJSON *p_nvalue = cJSON_GetObjectItem( pJsonRoot, "nvalue" );
-//    if ( p_plug || p_nvalue )
-    cJSON_AddNumberToObject( json_plug_send, "on", user_config->plug[x].on );
-
-    cJSON_AddItemToObject( pJsonSend, plug_str, json_plug_send );
-    return return_flag;
-}
-
-/*
- *Ω‚Œˆ¥¶¿Ì∂® ±»ŒŒÒjson
- *x:≤Â◊˘±‡∫≈ y:»ŒŒÒ±‡∫≈
- */
-bool json_plug_task_analysis( unsigned char x, unsigned char y, cJSON * pJsonRoot, cJSON * pJsonSend )
-{
-    if ( !pJsonRoot ) return false;
-    bool return_flag = false;
-
-    char plug_task_str[] = "task_X";
-    plug_task_str[5] = y + '0';
-
-    cJSON *p_plug_task = cJSON_GetObjectItem( pJsonRoot, plug_task_str );
-    if ( !p_plug_task ) return false;
-
-    cJSON *json_plug_task_send = cJSON_CreateObject( );
-
-    cJSON *p_plug_task_hour = cJSON_GetObjectItem( p_plug_task, "hour" );
-    cJSON *p_plug_task_minute = cJSON_GetObjectItem( p_plug_task, "minute" );
-    cJSON *p_plug_task_repeat = cJSON_GetObjectItem( p_plug_task, "repeat" );
-    cJSON *p_plug_task_action = cJSON_GetObjectItem( p_plug_task, "action" );
-    cJSON *p_plug_task_on = cJSON_GetObjectItem( p_plug_task, "on" );
-
-    if ( p_plug_task_hour && p_plug_task_minute && p_plug_task_repeat &&
-         p_plug_task_action
-         && p_plug_task_on )
-    {
-
-        if ( cJSON_IsNumber( p_plug_task_hour )
-             && cJSON_IsNumber( p_plug_task_minute )
-             && cJSON_IsNumber( p_plug_task_repeat )
-             && cJSON_IsNumber( p_plug_task_action )
-             && cJSON_IsNumber( p_plug_task_on )
-                                )
-        {
+            user_relay_set( x, p_slot->valueint );
             return_flag = true;
-            user_config->plug[x].task[y].hour = p_plug_task_hour->valueint;
-            user_config->plug[x].task[y].minute = p_plug_task_minute->valueint;
-            user_config->plug[x].task[y].repeat = p_plug_task_repeat->valueint;
-            user_config->plug[x].task[y].action = p_plug_task_action->valueint;
-            user_config->plug[x].task[y].on = p_plug_task_on->valueint;
         }
-
+        user_mqtt_send_slot_state( x );
     }
-    cJSON_AddNumberToObject( json_plug_task_send, "hour", user_config->plug[x].task[y].hour );
-    cJSON_AddNumberToObject( json_plug_task_send, "minute", user_config->plug[x].task[y].minute );
-    cJSON_AddNumberToObject( json_plug_task_send, "repeat", user_config->plug[x].task[y].repeat );
-    cJSON_AddNumberToObject( json_plug_task_send, "action", user_config->plug[x].task[y].action );
-    cJSON_AddNumberToObject( json_plug_task_send, "on", user_config->plug[x].task[y].on );
+    cJSON_AddNumberToObject( pJsonSend, slot_str, user_config->slot[x] );
 
-    cJSON_AddItemToObject( pJsonSend, plug_task_str, json_plug_task_send );
     return return_flag;
 }
+
 
 unsigned char strtohex( char a, char b )
 {
