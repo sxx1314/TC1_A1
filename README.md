@@ -13,21 +13,11 @@
 >
 >  ​	区分硬件版本见[区分硬件版本](#区分硬件版本)
 
-建立了个QQ群,有问题可以加入来讨论:**459996006**  [点这里直接加群](//shang.qq.com/wpa/qunwpa?idkey=9104eabd6131d856b527ad89636fc603eb745a5d047e8b45d183165c8e607e59)  (目前群为付费入群,Mac等可能无法加入付费群,请用安卓/pc/手机QQ搜索群号来加群)
 
-也可以发送邮件给我:zip_zhang@foxmail.com
 
-注意:
-已经发现有人使用的我的固件在我未授权的情况下在pdd转转等上加价售卖,所以之后不再提供完整刷机包,仅提供ota包,需要完整包刷机的请加群索要,或是发送邮件给我并能够证明你不是店铺卖家也会单独提供给你完整固件
-在武汉的可以来找我免费帮刷
 
-> ### 作者声明
->
-> 注意: 本项目主要目的为作者本人自己学习及使用TC1排插而开发,本着开源精神及造福网友而开源,仅个人开发,可能无法做到完整的测试,所以不承担他人使用本项目照成的所有后果.
->
-> **严禁他人将本项目用户用于任何商业活动.个人在非盈利情况下可以自己使用,严禁收费代刷等任何盈利服务.**
->
-> 有需要请联系作者:zip_zhang@foxmail.com
+
+
 
 
 
@@ -38,10 +28,6 @@
 定时任务偶尔无效
 
 为防止商用,以上bug在公开版本不修复
-
-
-
-
 
 ## 特性
 
@@ -127,7 +113,7 @@
 
 ## 拆机接线及烧录固件相关
 
-见[固件烧录](https://github.com/a2633063/zTC1/wiki/固件烧录)
+见[固件烧录](https://github.com/sxx1314/zTC1/wiki/固件烧录)
 
 烧录固件完成后,即可开始使用
 
@@ -135,13 +121,13 @@
 
 ## 开始使用/使用方法
 
-见[开始使用](https://github.com/a2633063/zTC1/wiki/开始使用)
+见[开始使用](https://github.com/sxx1314/zTC1/wiki/开始使用)
 
 
 
 ## 接入home assistant
 
-见[homeassistant接入](https://github.com/a2633063/zTC1/wiki/homeassistant接入)
+见[homeassistant接入](https://github.com/sxx1314/zTC1/wiki/homeassistant接入)
 
 
 
@@ -168,7 +154,7 @@ TC1使用的主控为EMW3031,基于MiCO(MCU based Internet Connectivity Operatin
 
 所有通信协议开源,你可以自己开发控制app或ios端
 
-见[通信协议](https://github.com/a2633063/zTC1/wiki/通信协议)
+见[通信协议](https://github.com/sxx1314/zTC1/wiki/通信协议)
 
 
 
